@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-provider-role
+  namespace: jwt-test-app
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secrets-provider-rolebinding
+  namespace: jwt-test-app
+subjects:
+- kind: ServiceAccount
+  name: jwt-test-app-sa
+  namespace: jwt-test-app
+roleRef:
+  kind: Role
+  name: secrets-provider-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,50 @@
+# Combined Conjur Policy for CSI Pattern
+
+# JWT Authenticator Configuration
+- !policy
+  id: conjur/authn-jwt/dev
+  body:
+    - !webservice
+    - !group apps
+    - !permit
+      role: !group apps
+      privilege: [ read, authenticate ]
+      resource: !webservice
+    # Use public-keys instead of jwks-uri
+    - !variable public-keys
+    - !variable issuer
+    - !variable token-app-property
+    - !variable identity-path
+    - !variable audience
+
+# Application Secrets
+- !policy
+  id: secrets
+  body:
+    - !group consumers
+    - &variables
+      - !variable username
+      - !variable password
+    - !permit
+      role: !group consumers
+      privilege: [ read, execute ]
+      resource: *variables
+
+# Host Identity for CSI test app
+- !policy
+  id: jwt-apps
+  body:
+    - !host
+      id: system:serviceaccount:csi-test-app:csi-test-app-sa
+      annotations:
+        authn-jwt/dev/sub: system:serviceaccount:csi-test-app:csi-test-app-sa
+
+# Grant Host to JWT Authenticator Group
+- !grant
+  role: !group conjur/authn-jwt/dev/apps
+  member: !host jwt-apps/system:serviceaccount:csi-test-app:csi-test-app-sa
+
+# Grant Host Access to Secrets
+- !grant
+  role: !group secrets/consumers
+  member: !host jwt-apps/system:serviceaccount:csi-test-app:csi-test-app-sa

@@ -1,0 +1,18 @@
+# Host identity for JWT Sidecar test app
+- !policy
+  id: jwt-apps
+  body:
+    - !host
+      id: system:serviceaccount:jwt-test-app:jwt-test-app-sa
+      annotations:
+        authn-jwt/dev/sub: system:serviceaccount:jwt-test-app:jwt-test-app-sa
+
+# Grant host to JWT authenticator group
+- !grant
+  role: !group conjur/authn-jwt/dev/apps
+  member: !host jwt-apps/system:serviceaccount:jwt-test-app:jwt-test-app-sa
+
+# Grant host access to secrets
+- !grant
+  role: !group secrets/consumers
+  member: !host jwt-apps/system:serviceaccount:jwt-test-app:jwt-test-app-sa

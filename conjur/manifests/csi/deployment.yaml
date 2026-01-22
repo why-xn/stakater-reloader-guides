@@ -1,0 +1,62 @@
+# CSI Test Application Deployment
+# Uses Conjur CSI Driver to sync secrets to K8s Secret
+# Reloader watches the synced Secret and restarts pod on changes
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csi-test-app
+  namespace: csi-test-app
+  annotations:
+    reloader.stakater.com/search: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: csi-test-app
+  template:
+    metadata:
+      labels:
+        app: csi-test-app
+      annotations:
+        # Map Conjur secrets to files in the CSI volume
+        conjur.org/secrets: |
+          - username.txt: secrets/username
+          - password.txt: secrets/password
+    spec:
+      serviceAccountName: csi-test-app-sa
+      containers:
+        - name: app
+          image: busybox:latest
+          command:
+            - "sh"
+            - "-c"
+            - |
+              while true; do
+                echo "Username: $APP_USERNAME"
+                echo "Password: $APP_PASSWORD"
+                sleep 30
+              done
+          # Reference secrets from K8s Secret (required for Reloader)
+          env:
+            - name: APP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: username
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: password
+          # CSI volume mount required to trigger secret sync
+          volumeMounts:
+            - name: conjur-secrets
+              mountPath: /mnt/secrets
+              readOnly: true
+      volumes:
+        - name: conjur-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: conjur-secrets

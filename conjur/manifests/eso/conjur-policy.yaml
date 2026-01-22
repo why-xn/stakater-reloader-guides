@@ -1,0 +1,25 @@
+# Conjur Policy for External Secrets Operator (API Key Authentication)
+
+# Application Secrets
+- !policy
+  id: secrets
+  body:
+    - !group consumers
+    - &variables
+      - !variable username
+      - !variable password
+    - !permit
+      role: !group consumers
+      privilege: [ read, execute ]
+      resource: *variables
+
+# Host Identity for External Secrets Operator
+- !policy
+  id: apps
+  body:
+    - !host external-secrets
+
+# Grant Host Access to Secrets
+- !grant
+  role: !group secrets/consumers
+  member: !host apps/external-secrets

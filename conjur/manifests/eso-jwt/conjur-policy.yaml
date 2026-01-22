@@ -1,0 +1,58 @@
+# Conjur Policy for External Secrets Operator with JWT Authentication
+
+# Application Secrets
+- !policy
+  id: secrets
+  body:
+    - !group consumers
+    - &variables
+      - !variable username
+      - !variable password
+    - !permit
+      role: !group consumers
+      privilege: [ read, execute ]
+      resource: *variables
+
+# JWT Authenticator Configuration for authn-jwt/dev
+- !policy
+  id: conjur/authn-jwt/dev
+  body:
+    - !webservice
+
+    # JWT validation variables
+    - !variable public-keys
+    - !variable issuer
+    - !variable token-app-property
+    - !variable identity-path
+    - !variable audience
+
+    # Group for apps that can authenticate
+    - !group apps
+
+    - !permit
+      role: !group apps
+      privilege: [ authenticate ]
+      resource: !webservice
+
+    - !webservice status
+
+# Host identities for JWT authentication
+# Identity path is 'jwt-apps', so hosts are defined under this policy
+- !policy
+  id: jwt-apps
+  body:
+    # Host for ESO service account in eso-jwt-test namespace
+    - !host
+      id: system:serviceaccount:eso-jwt-test:eso-jwt-sa
+      annotations:
+        authn-jwt/dev/sub: system:serviceaccount:eso-jwt-test:eso-jwt-sa
+
+# Grant host to authenticator group
+- !grant
+  role: !group conjur/authn-jwt/dev/apps
+  member: !host jwt-apps/system:serviceaccount:eso-jwt-test:eso-jwt-sa
+
+# Grant access to secrets
+- !grant
+  role: !group secrets/consumers
+  member: !host jwt-apps/system:serviceaccount:eso-jwt-test:eso-jwt-sa

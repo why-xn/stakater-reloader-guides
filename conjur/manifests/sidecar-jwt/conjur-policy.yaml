@@ -1,0 +1,66 @@
+# Combined Conjur Policy for JWT Sidecar Pattern
+
+# =============================================================================
+# Section 1: JWT Authenticator Configuration
+# =============================================================================
+- !policy
+  id: conjur/authn-jwt/dev
+  body:
+    - !webservice
+
+    - !group apps
+
+    - !permit
+      role: !group apps
+      privilege: [ read, authenticate ]
+      resource: !webservice
+
+    # JWT authenticator variables (using public-keys, not jwks-uri)
+    - !variable public-keys
+    - !variable issuer
+    - !variable token-app-property
+    - !variable identity-path
+    - !variable audience
+
+# =============================================================================
+# Section 2: Application Secrets
+# =============================================================================
+- !policy
+  id: secrets
+  body:
+    - !group consumers
+
+    - &variables
+      - !variable username
+      - !variable password
+      - !variable db-url
+
+    - !permit
+      role: !group consumers
+      privilege: [ read, execute ]
+      resource: *variables
+
+# =============================================================================
+# Section 3: Host Identity for JWT Authentication
+# =============================================================================
+- !policy
+  id: jwt-apps
+  body:
+    - !host
+      id: system:serviceaccount:jwt-test-app:jwt-test-app-sa
+      annotations:
+        authn-jwt/dev/sub: system:serviceaccount:jwt-test-app:jwt-test-app-sa
+
+# =============================================================================
+# Section 4: Grant Host to JWT Authenticator Group
+# =============================================================================
+- !grant
+  role: !group conjur/authn-jwt/dev/apps
+  member: !host jwt-apps/system:serviceaccount:jwt-test-app:jwt-test-app-sa
+
+# =============================================================================
+# Section 5: Grant Host Access to Secrets
+# =============================================================================
+- !grant
+  role: !group secrets/consumers
+  member: !host jwt-apps/system:serviceaccount:jwt-test-app:jwt-test-app-sa
