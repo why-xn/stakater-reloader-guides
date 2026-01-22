@@ -431,59 +431,6 @@ Even if your app only uses environment variables from the K8s Secret, the CSI vo
 1. The CSI driver only syncs secrets when a pod mounts the volume
 2. Without the mount, the K8s Secret (secretObjects) won't be created
 
-## Troubleshooting
-
-### Authentication Fails with 401
-
-1. Verify CSI driver has correct tokenRequests audience:
-   ```bash
-   kubectl get csidriver secrets-store.csi.k8s.io -o yaml | grep -A 3 tokenRequests
-   ```
-   Should show `audience: conjur`
-
-2. Check JWT authenticator audience is set to `"conjur"`:
-   ```bash
-   conjur variable get -i conjur/authn-jwt/dev/audience
-   ```
-
-3. Verify host exists in Conjur:
-   ```bash
-   conjur list --kind=host
-   ```
-
-### Pod Stuck in ContainerCreating
-
-1. Check pod events:
-   ```bash
-   kubectl describe pod -n csi-test-app -l app=csi-test-app
-   ```
-
-2. Check CSI provider logs:
-   ```bash
-   kubectl logs -n kube-system -l app=conjur-k8s-csi-provider
-   ```
-
-3. Check Conjur logs:
-   ```bash
-   kubectl logs -n conjur deployment/conjur-conjur-oss -c conjur-oss
-   ```
-
-### K8s Secret Not Created
-
-1. Verify SecretProviderClass has `secretObjects` configured
-2. Check SecretProviderClassPodStatus:
-   ```bash
-   kubectl get secretproviderclasspodstatuses -n csi-test-app -o yaml
-   ```
-
-### Reloader Not Restarting Pods
-
-1. **Deployment must reference the secret** via env vars or volume mount
-2. Verify secret has the Reloader annotation:
-   ```bash
-   kubectl get secret app-secrets -n csi-test-app -o jsonpath='{.metadata.annotations}'
-   ```
-
 ## Manifest Files
 
 All manifests are available in `../manifests/csi/`:

@@ -425,52 +425,6 @@ annotations:
 | Deployment | `reloader.stakater.com/search: "true"` |
 | Secret | `reloader.stakater.com/match: "true"` (must be annotation, not label) |
 
-## Troubleshooting
-
-### Authentication Fails with 401
-
-1. Check JWT token claims:
-   ```bash
-   TOKEN=$(kubectl create token jwt-test-app-sa -n jwt-test-app \
-     --audience=https://conjur-conjur-oss.conjur.svc.cluster.local)
-   echo $TOKEN | cut -d'.' -f2 | base64 -d | jq .
-   ```
-
-2. Verify host exists:
-   ```bash
-   conjur list | grep jwt-apps
-   ```
-
-### Sidecar Crashes with Deadlock
-
-Use version 1.6.1 of secrets-provider:
-```yaml
-image: cyberark/secrets-provider-for-k8s:1.6.1
-```
-
-### Secrets Not Refreshing
-
-1. Check pod annotations include `conjur.org/secrets-refresh-interval`
-2. Verify `podinfo` volume is mounted
-3. Check sidecar logs for refresh activity
-
-### Reloader Not Restarting Pods
-
-1. **Deployment must reference the secret** - The app container must use the secret via env vars or volume mount:
-   ```yaml
-   env:
-   - name: APP_PASSWORD
-     valueFrom:
-       secretKeyRef:
-         name: app-secrets
-         key: password
-   ```
-
-2. Verify secret has **annotation** (not label):
-   ```bash
-   kubectl get secret app-secrets -n jwt-test-app -o jsonpath='{.metadata.annotations}'
-   ```
-
 ## Manifest Files
 
 All manifests are available in `../manifests/sidecar-jwt/`:
