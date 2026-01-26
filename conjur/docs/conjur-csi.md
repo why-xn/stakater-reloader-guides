@@ -434,6 +434,6 @@ Even if your app only uses environment variables from the K8s Secret, the CSI vo
 ## Manifest Files
 
 All manifests are available in `../manifests/csi/`:
-- `combined-policy.yaml` - Conjur policy
+- `conjur-policy.yaml` - Conjur policy
 - `secret-provider-class.yaml` - SecretProviderClass configuration
 - `deployment.yaml` - Application deployment

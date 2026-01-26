@@ -428,6 +428,6 @@ annotations:
 ## Manifest Files
 
 All manifests are available in `../manifests/sidecar-jwt/`:
-- `combined-policy.yaml` - Conjur policy
+- `conjur-policy.yaml` - Conjur policy
 - `deployment.yaml` - Application deployment and secret
 - `rbac.yaml` - RBAC for secrets provider
