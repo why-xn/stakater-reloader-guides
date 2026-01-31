@@ -1,0 +1,43 @@
+# Application Deployment for Vault VSO Kubernetes Auth pattern
+# Reloader watches for Secret changes and restarts this Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-vso-test-app
+  namespace: vault-vso-test
+  annotations:
+    reloader.stakater.com/search: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault-vso-test-app
+  template:
+    metadata:
+      labels:
+        app: vault-vso-test-app
+    spec:
+      serviceAccountName: vault-vso-sa
+      containers:
+        - name: app
+          image: busybox:latest
+          command:
+            - "sh"
+            - "-c"
+            - |
+              while true; do
+                echo "Username: $APP_USERNAME"
+                echo "Password: $APP_PASSWORD"
+                sleep 30
+              done
+          env:
+            - name: APP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: username
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: password

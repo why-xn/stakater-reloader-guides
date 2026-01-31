@@ -1,0 +1,42 @@
+# Application Deployment for Vault ESO Token pattern
+# Reloader watches for Secret changes and restarts this Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-eso-test-app
+  namespace: vault-eso-test
+  annotations:
+    reloader.stakater.com/search: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault-eso-test-app
+  template:
+    metadata:
+      labels:
+        app: vault-eso-test-app
+    spec:
+      containers:
+        - name: app
+          image: busybox:latest
+          command:
+            - "sh"
+            - "-c"
+            - |
+              while true; do
+                echo "Username: $APP_USERNAME"
+                echo "Password: $APP_PASSWORD"
+                sleep 30
+              done
+          env:
+            - name: APP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: username
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: password

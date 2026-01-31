@@ -1,0 +1,13 @@
+# VaultAuth with AppRole authentication
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: vault-auth
+  namespace: vault-vso-test
+spec:
+  vaultConnectionRef: vault-connection
+  method: appRole
+  mount: approle
+  appRole:
+    roleId: <ROLE_ID>
+    secretRef: vault-approle-secret

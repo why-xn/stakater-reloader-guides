@@ -1,0 +1,43 @@
+# Application Deployment for Vault CSI Driver (file-based) pattern
+# Reloader watches SecretProviderClassPodStatus and restarts this Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-csi-file-test-app
+  namespace: vault-csi-file-test
+  annotations:
+    secretproviderclass.reloader.stakater.com/reload: "vault-secrets"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault-csi-file-test-app
+  template:
+    metadata:
+      labels:
+        app: vault-csi-file-test-app
+    spec:
+      serviceAccountName: vault-csi-file-sa
+      containers:
+        - name: app
+          image: busybox:latest
+          command:
+            - "sh"
+            - "-c"
+            - |
+              while true; do
+                echo "Username: $(cat /mnt/secrets/username)"
+                echo "Password: $(cat /mnt/secrets/password)"
+                sleep 10
+              done
+          volumeMounts:
+            - name: vault-secrets
+              mountPath: /mnt/secrets
+              readOnly: true
+      volumes:
+        - name: vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: vault-secrets
