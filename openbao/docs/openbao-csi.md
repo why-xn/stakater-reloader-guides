@@ -105,12 +105,11 @@ kubectl get pods -n openbao -l app.kubernetes.io/name=openbao-csi-provider
 
 ## Step 3: Configure OpenBao
 
+> **Note:** All `bao` commands below assume `BAO_ADDR` and `BAO_TOKEN` are set from [README Step 3](../README.md#step-3-configure-openbao-cli).
+
 ### Create Read Policy
 
 ```bash
-kubectl exec -it openbao-0 -n openbao -- sh
-export BAO_TOKEN=<root-token>
-
 bao policy write myapp-read - <<EOF
 path "secret/data/myapp" {
   capabilities = ["read"]
@@ -124,7 +123,7 @@ EOF
 bao auth enable kubernetes
 
 bao write auth/kubernetes/config \
-    kubernetes_host="https://$KUBERNETES_PORT_443_TCP_ADDR:443"
+    kubernetes_host='https://kubernetes.default.svc.cluster.local'
 ```
 
 ### Create Auth Role
@@ -306,8 +305,7 @@ kubectl get pods -n openbao-csi-test -l app=openbao-csi-test-app
 Update secret in OpenBao:
 
 ```bash
-kubectl exec -it openbao-0 -n openbao -- sh -c \
-  "BAO_TOKEN=<root-token> bao kv put secret/myapp username=myuser password=rotated-password"
+bao kv put secret/myapp username=myuser password=rotated-password
 ```
 
 Wait for CSI rotation (based on rotationPollInterval) and Reloader:

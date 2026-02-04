@@ -58,7 +58,7 @@ Choose the authentication method that best fits your security requirements and p
 
 Complete the common setup steps from the [README](../README.md):
 - OpenBao installed, initialized, and unsealed
-- OpenBao CLI configured
+- OpenBao CLI configured (`BAO_ADDR` and `BAO_TOKEN` exported)
 - KV v2 secrets engine enabled
 - Test secrets written to `secret/myapp`
 - Read policy (`myapp-read`) created
@@ -66,6 +66,8 @@ Complete the common setup steps from the [README](../README.md):
 
 Additionally required:
 - External Secrets Operator installed
+
+> **Note:** All `bao` commands below assume `BAO_ADDR` and `BAO_TOKEN` are set from [README Step 3](../README.md#step-3-configure-openbao-cli).
 
 ### Install External Secrets Operator
 
@@ -93,20 +95,20 @@ This section covers setting up ESO with OpenBao token authentication. This metho
 ## Token: Step 1 - Create OpenBao Policy
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao policy write myapp-read - <<EOF
-path \"secret/data/myapp\" {
-  capabilities = [\"read\"]
+bao policy write myapp-read - <<EOF
+path "secret/data/myapp" {
+  capabilities = ["read"]
 }
-path \"secret/metadata/myapp\" {
-  capabilities = [\"read\"]
+path "secret/metadata/myapp" {
+  capabilities = ["read"]
 }
-EOF"
+EOF
 ```
 
 ## Token: Step 2 - Write Secrets
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='super-secret-password'"
+bao kv put secret/myapp username='admin-user' password='super-secret-password'
 ```
 
 ## Token: Step 3 - Create OpenBao Token
@@ -114,7 +116,7 @@ kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao k
 Create a token with the read policy:
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao token create -policy=myapp-read -period=24h -display-name=eso-token"
+bao token create -policy=myapp-read -period=24h -display-name=eso-token
 ```
 
 **Important:** Save the `token` value from the output. You'll need it in the next step.
@@ -184,40 +186,41 @@ This section covers setting up ESO with OpenBao Kubernetes authentication. This 
 ## K8s Auth: Step 1 - Create OpenBao Policy
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao policy write myapp-read - <<EOF
-path \"secret/data/myapp\" {
-  capabilities = [\"read\"]
+bao policy write myapp-read - <<EOF
+path "secret/data/myapp" {
+  capabilities = ["read"]
 }
-path \"secret/metadata/myapp\" {
-  capabilities = [\"read\"]
+path "secret/metadata/myapp" {
+  capabilities = ["read"]
 }
-EOF"
+EOF
 ```
 
 ## K8s Auth: Step 2 - Enable and Configure Kubernetes Auth
 
 ```bash
 # Enable Kubernetes auth method (skip if already enabled)
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao auth enable kubernetes"
+bao auth enable kubernetes
 
 # Configure Kubernetes auth
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao write auth/kubernetes/config kubernetes_host='https://kubernetes.default.svc.cluster.local'"
+bao write auth/kubernetes/config \
+  kubernetes_host='https://kubernetes.default.svc.cluster.local'
 ```
 
 ## K8s Auth: Step 3 - Create OpenBao Role
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao write auth/kubernetes/role/eso-role \
+bao write auth/kubernetes/role/eso-role \
   bound_service_account_names=openbao-eso-sa \
   bound_service_account_namespaces=openbao-eso-test \
   policies=myapp-read \
-  ttl=1h"
+  ttl=1h
 ```
 
 ## K8s Auth: Step 4 - Write Secrets
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='super-secret-password'"
+bao kv put secret/myapp username='admin-user' password='super-secret-password'
 ```
 
 ## K8s Auth: Step 5 - Create Application Namespace and ServiceAccount
@@ -394,7 +397,7 @@ kubectl logs -n openbao-eso-test -l app=openbao-eso-test-app
 ### Update Secret in OpenBao
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='new-rotated-password'"
+bao kv put secret/myapp username='admin-user' password='new-rotated-password'
 ```
 
 ### Wait and Verify

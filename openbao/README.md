@@ -13,6 +13,7 @@ OpenBao is an open-source, community-driven fork of HashiCorp Vault, managed by 
 | **External Secrets Operator** | ESO syncs to K8s Secret | ESO refresh interval | Best fit | [ESO Guide](docs/openbao-eso.md) |
 | **OpenBao Secrets Operator** | BSO syncs to K8s Secret | BSO refresh interval | Best fit | [BSO Guide](docs/openbao-bso.md) |
 | **CSI Driver** | CSI mounts files + syncs to K8s Secret | CSI rotation interval | Works with secretObjects | [CSI Guide](docs/openbao-csi.md) |
+| **CSI Driver (File-Based)** | CSI mounts files only (no K8s Secret) | CSI rotation interval | Works via SecretProviderClassPodStatus | [CSI File Guide](docs/openbao-csi-file.md) |
 
 ## Architecture Overview
 
@@ -55,7 +56,7 @@ OpenBao is an open-source, community-driven fork of HashiCorp Vault, managed by 
 - Kubernetes cluster (v1.19+)
 - Helm v3+
 - OpenBao (OSS)
-- OpenBao CLI (`bao`) installed locally (optional)
+- OpenBao CLI (`bao`) installed locally
 - Stakater Reloader installed
 - kubectl configured with cluster access
 
@@ -116,9 +117,9 @@ OpenBao should now show `Sealed: false`. Wait for the pod to become Ready:
 kubectl wait --for=condition=ready pod/openbao-0 -n openbao --timeout=30s
 ```
 
-### Step 3: Configure OpenBao CLI (Optional)
+### Step 3: Configure OpenBao CLI
 
-If you have the `bao` CLI installed locally:
+Set up the `bao` CLI locally:
 
 ```bash
 # Port-forward for local CLI access
@@ -129,22 +130,24 @@ export BAO_ADDR="http://127.0.0.1:8200"
 export BAO_TOKEN="$OPENBAO_ROOT_TOKEN"
 ```
 
-Alternatively, run commands via kubectl exec:
+Alternatively, you can run `bao` commands directly inside the OpenBao pod:
 
 ```bash
 kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=<token> bao <command>"
 ```
 
+> **Note:** The remaining steps in this guide use the local CLI. If using the in-pod approach, prefix each `bao` command with the `kubectl exec` pattern above.
+
 ### Step 4: Enable KV v2 Secrets Engine
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao secrets enable -path=secret kv-v2"
+bao secrets enable -path=secret kv-v2
 ```
 
 Verify:
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao secrets list"
+bao secrets list
 ```
 
 You should see `secret/` listed as `kv` version 2.
@@ -152,36 +155,37 @@ You should see `secret/` listed as `kv` version 2.
 ### Step 5: Write Test Secrets
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='super-secret-password'"
+bao kv put secret/myapp username='admin-user' password='super-secret-password'
 ```
 
 Verify:
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao kv get secret/myapp"
+bao kv get secret/myapp
 ```
 
 ### Step 6: Create OpenBao Read Policy
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao policy write myapp-read - <<EOF
-path \"secret/data/myapp\" {
-  capabilities = [\"read\"]
+bao policy write myapp-read - <<EOF
+path "secret/data/myapp" {
+  capabilities = ["read"]
 }
-path \"secret/metadata/myapp\" {
-  capabilities = [\"read\"]
+path "secret/metadata/myapp" {
+  capabilities = ["read"]
 }
-EOF"
+EOF
 ```
 
 ### Step 7: Enable Kubernetes Auth
 
 ```bash
 # Enable Kubernetes auth method
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao auth enable kubernetes"
+bao auth enable kubernetes
 
 # Configure Kubernetes auth
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao write auth/kubernetes/config kubernetes_host='https://kubernetes.default.svc.cluster.local'"
+bao write auth/kubernetes/config \
+  kubernetes_host='https://kubernetes.default.svc.cluster.local'
 ```
 
 ### Step 8: Enable AppRole Auth (Optional)
@@ -189,7 +193,7 @@ kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao wr
 Only required for the [BSO AppRole pattern](docs/openbao-bso.md#option-2-approle-authentication).
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao auth enable approle"
+bao auth enable approle
 ```
 
 ## How Reloader Works
@@ -200,7 +204,7 @@ kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=$OPENBAO_ROOT_TOKEN bao au
 
 ### Reloader Annotations
 
-**On Deployment:**
+**On Deployment (for K8s Secret-based patterns: ESO, BSO, CSI with secretObjects):**
 ```yaml
 metadata:
   annotations:
@@ -214,11 +218,19 @@ metadata:
     reloader.stakater.com/match: "true"
 ```
 
+**On Deployment (for CSI file-based pattern only):**
+```yaml
+metadata:
+  annotations:
+    secretproviderclass.reloader.stakater.com/reload: "<secretproviderclass-name>"
+```
+
 ## Pattern-Specific Guides
 
 - [External Secrets Operator Pattern](docs/openbao-eso.md) - Token or Kubernetes auth
 - [OpenBao Secrets Operator Pattern](docs/openbao-bso.md) - Kubernetes auth or AppRole
-- [CSI Driver Pattern](docs/openbao-csi.md) - Kubernetes auth
+- [CSI Driver Pattern](docs/openbao-csi.md) - Kubernetes auth (syncs to K8s Secret)
+- [CSI Driver File-Based Pattern](docs/openbao-csi-file.md) - Kubernetes auth (file-only, no K8s Secret)
 
 ## References
 

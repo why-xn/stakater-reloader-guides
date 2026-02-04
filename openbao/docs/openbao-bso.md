@@ -58,7 +58,7 @@ Choose the authentication method that best fits your security requirements and p
 
 Complete the common setup steps from the [README](../README.md):
 - OpenBao installed, initialized, and unsealed
-- OpenBao CLI configured
+- OpenBao CLI configured (`BAO_ADDR` and `BAO_TOKEN` exported)
 - KV v2 secrets engine enabled
 - Test secrets written to `secret/myapp`
 - Read policy (`myapp-read`) created
@@ -66,6 +66,8 @@ Complete the common setup steps from the [README](../README.md):
 
 Additionally required:
 - OpenBao Secrets Operator installed
+
+> **Note:** All `bao` commands below assume `BAO_ADDR` and `BAO_TOKEN` are set from [README Step 3](../README.md#step-3-configure-openbao-cli).
 
 ### Install OpenBao Secrets Operator
 
@@ -88,40 +90,41 @@ This section covers setting up BSO with OpenBao Kubernetes authentication. This 
 ## K8s Auth: Step 1 - Create OpenBao Policy
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao policy write myapp-read - <<EOF
-path \"secret/data/myapp\" {
-  capabilities = [\"read\"]
+bao policy write myapp-read - <<EOF
+path "secret/data/myapp" {
+  capabilities = ["read"]
 }
-path \"secret/metadata/myapp\" {
-  capabilities = [\"read\"]
+path "secret/metadata/myapp" {
+  capabilities = ["read"]
 }
-EOF"
+EOF
 ```
 
 ## K8s Auth: Step 2 - Enable and Configure Kubernetes Auth
 
 ```bash
 # Enable Kubernetes auth method (skip if already enabled)
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao auth enable kubernetes"
+bao auth enable kubernetes
 
 # Configure Kubernetes auth
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao write auth/kubernetes/config kubernetes_host='https://kubernetes.default.svc.cluster.local'"
+bao write auth/kubernetes/config \
+  kubernetes_host='https://kubernetes.default.svc.cluster.local'
 ```
 
 ## K8s Auth: Step 3 - Create OpenBao Role
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao write auth/kubernetes/role/bso-role \
+bao write auth/kubernetes/role/bso-role \
   bound_service_account_names=openbao-bso-sa \
   bound_service_account_namespaces=openbao-bso-test \
   policies=myapp-read \
-  ttl=1h"
+  ttl=1h
 ```
 
 ## K8s Auth: Step 4 - Write Secrets
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='super-secret-password'"
+bao kv put secret/myapp username='admin-user' password='super-secret-password'
 ```
 
 ## K8s Auth: Step 5 - Create Application Namespace and ServiceAccount
@@ -219,39 +222,39 @@ This section covers setting up BSO with OpenBao AppRole authentication. This met
 ## AppRole: Step 1 - Create OpenBao Policy
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao policy write myapp-read - <<EOF
-path \"secret/data/myapp\" {
-  capabilities = [\"read\"]
+bao policy write myapp-read - <<EOF
+path "secret/data/myapp" {
+  capabilities = ["read"]
 }
-path \"secret/metadata/myapp\" {
-  capabilities = [\"read\"]
+path "secret/metadata/myapp" {
+  capabilities = ["read"]
 }
-EOF"
+EOF
 ```
 
 ## AppRole: Step 2 - Enable and Configure AppRole Auth
 
 ```bash
 # Enable AppRole auth method (skip if already enabled)
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao auth enable approle"
+bao auth enable approle
 
 # Create AppRole role
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao write auth/approle/role/bso-role \
+bao write auth/approle/role/bso-role \
   secret_id_ttl=0 \
   token_policies=myapp-read \
   token_ttl=1h \
-  token_max_ttl=4h"
+  token_max_ttl=4h
 ```
 
 ## AppRole: Step 3 - Get RoleID and SecretID
 
 ```bash
 # Get RoleID
-ROLE_ID=$(kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao read -field=role_id auth/approle/role/bso-role/role-id")
+ROLE_ID=$(bao read -field=role_id auth/approle/role/bso-role/role-id)
 echo "RoleID: $ROLE_ID"
 
 # Generate SecretID
-SECRET_ID=$(kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao write -field=secret_id -f auth/approle/role/bso-role/secret-id")
+SECRET_ID=$(bao write -field=secret_id -f auth/approle/role/bso-role/secret-id)
 echo "SecretID: $SECRET_ID"
 ```
 
@@ -260,14 +263,17 @@ echo "SecretID: $SECRET_ID"
 ## AppRole: Step 4 - Write Secrets
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='super-secret-password'"
+bao kv put secret/myapp username='admin-user' password='super-secret-password'
 ```
 
-## AppRole: Step 5 - Create Application Namespace and AppRole Secret
+## AppRole: Step 5 - Create Application Namespace, ServiceAccount, and AppRole Secret
 
 ```bash
 # Create namespace
 kubectl create namespace openbao-bso-test
+
+# Create service account (required by the deployment)
+kubectl create serviceaccount openbao-bso-sa -n openbao-bso-test
 
 # Create Kubernetes Secret with AppRole SecretID
 # The secret must have a key named "id" (required by BSO)
@@ -444,7 +450,7 @@ kubectl logs -n openbao-bso-test -l app=openbao-bso-test-app
 ### Update Secret in OpenBao
 
 ```bash
-kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN=\$OPENBAO_ROOT_TOKEN bao kv put secret/myapp username='admin-user' password='new-rotated-password'"
+bao kv put secret/myapp username='admin-user' password='new-rotated-password'
 ```
 
 ### Wait and Verify
