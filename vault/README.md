@@ -213,6 +213,145 @@ metadata:
 - [CSI Driver Pattern](docs/vault-csi.md) - Kubernetes auth
 - [CSI Driver File-Based Pattern](docs/vault-csi-file.md) - Kubernetes auth, no K8s Secret
 
+## Using External Vault (Multi-Cluster Setup)
+
+Vault does not need to run inside Kubernetes. A single external Vault instance can serve multiple Kubernetes clusters. This is a common production pattern for centralized secrets management.
+
+### Requirements
+
+1. **Network connectivity** - Pods must be able to reach the external Vault URL
+2. **TLS certificates** - Production Vault should use TLS; clusters need the CA certificate
+3. **Per-cluster Kubernetes auth configuration** - Each cluster's JWT tokens are unique
+
+### Authentication Methods with External Vault
+
+| Auth Method | Works with External Vault? | Additional Configuration |
+|-------------|---------------------------|-------------------------|
+| **Token** | Yes | None - just update Vault URL |
+| **AppRole** | Yes | None - just update Vault URL |
+| **Kubernetes** | Yes | Requires per-cluster auth mount configuration |
+
+### Configuring Kubernetes Auth for External Vault
+
+When Vault runs outside the cluster, it cannot automatically discover the Kubernetes API. You must provide:
+
+```bash
+# Create a service account for Vault to validate tokens
+kubectl create serviceaccount vault-auth -n kube-system
+
+# Grant token review permissions
+kubectl create clusterrolebinding vault-auth-delegator \
+  --clusterrole=system:auth-delegator \
+  --serviceaccount=kube-system:vault-auth
+
+# Get the service account token (for K8s 1.24+, create a secret)
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-auth-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: vault-auth
+type: kubernetes.io/service-account-token
+EOF
+
+# Extract values for Vault configuration
+TOKEN_REVIEWER_JWT=$(kubectl get secret vault-auth-token -n kube-system -o jsonpath='{.data.token}' | base64 -d)
+KUBE_CA_CERT=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d)
+KUBE_HOST=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.server}')
+```
+
+Configure Vault with a separate auth mount per cluster:
+
+```bash
+# Enable Kubernetes auth for this cluster
+vault auth enable -path=kubernetes-cluster-a kubernetes
+
+# Configure with cluster-specific values
+vault write auth/kubernetes-cluster-a/config \
+  kubernetes_host="$KUBE_HOST" \
+  kubernetes_ca_cert="$KUBE_CA_CERT" \
+  token_reviewer_jwt="$TOKEN_REVIEWER_JWT"
+
+# Create role (same as before)
+vault write auth/kubernetes-cluster-a/role/myapp-role \
+  bound_service_account_names=myapp-sa \
+  bound_service_account_namespaces=production \
+  policies=myapp-read \
+  ttl=1h
+```
+
+### Manifest Changes for External Vault
+
+Update the Vault address in your manifests:
+
+**ESO SecretStore:**
+```yaml
+spec:
+  provider:
+    vault:
+      server: "https://vault.example.com:8200"
+      caBundle: "<base64-encoded-ca-cert>"  # For TLS
+      path: secret
+      auth:
+        kubernetes:
+          mountPath: kubernetes-cluster-a  # Cluster-specific mount
+          role: myapp-role
+```
+
+**VSO VaultConnection:**
+```yaml
+spec:
+  address: "https://vault.example.com:8200"
+  caCertSecretRef:
+    name: vault-ca-cert
+    key: ca.crt
+```
+
+**VSO VaultAuth (with external Vault):**
+```yaml
+spec:
+  method: kubernetes
+  mount: kubernetes-cluster-a  # Cluster-specific mount
+  kubernetes:
+    role: myapp-role
+    serviceAccount: myapp-sa
+```
+
+**CSI SecretProviderClass:**
+```yaml
+parameters:
+  vaultAddress: "https://vault.example.com:8200"
+  vaultCACertPath: "/vault/tls/ca.crt"  # Or use vaultSkipTLSVerify for testing
+  roleName: myapp-role
+```
+
+### Multi-Cluster Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         External Vault Server                                │
+│                      (https://vault.example.com:8200)                       │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │ │
+│  │  │ KV v2 Engine     │  │ kubernetes-      │  │ kubernetes-      │    │ │
+│  │  │ secret/myapp     │  │ cluster-a/       │  │ cluster-b/       │    │ │
+│  │  │                  │  │ (auth mount)     │  │ (auth mount)     │    │ │
+│  │  └──────────────────┘  └──────────────────┘  └──────────────────┘    │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+          │                           │                           │
+          ▼                           ▼                           ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│  Cluster A       │       │  Cluster B       │       │  Cluster C       │
+│  (Production)    │       │  (Staging)       │       │  (Dev)           │
+│                  │       │                  │       │                  │
+│  ESO / VSO / CSI │       │  ESO / VSO / CSI │       │  ESO / VSO / CSI │
+│  + Reloader      │       │  + Reloader      │       │  + Reloader      │
+└──────────────────┘       └──────────────────┘       └──────────────────┘
+```
+
 ## References
 
 - [Stakater Reloader](https://github.com/stakater/Reloader)
