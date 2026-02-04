@@ -1,0 +1,53 @@
+# Application Deployment for OpenBao CSI pattern
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao-csi-test-app
+  namespace: openbao-csi-test
+  annotations:
+    reloader.stakater.com/search: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao-csi-test-app
+  template:
+    metadata:
+      labels:
+        app: openbao-csi-test-app
+    spec:
+      serviceAccountName: openbao-csi-sa
+      containers:
+        - name: app
+          image: busybox:latest
+          command:
+            - "sh"
+            - "-c"
+            - |
+              while true; do
+                echo "Username: $APP_USERNAME"
+                echo "Password: $APP_PASSWORD"
+                sleep 30
+              done
+          env:
+            - name: APP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: username
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: password
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: openbao-secrets

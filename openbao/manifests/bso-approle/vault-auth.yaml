@@ -1,0 +1,14 @@
+# VaultAuth for OpenBao BSO AppRole pattern
+# Replace <ROLE_ID> with actual RoleID from OpenBao
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: openbao-auth
+  namespace: openbao-bso-test
+spec:
+  vaultConnectionRef: openbao-connection
+  method: appRole
+  mount: approle
+  appRole:
+    roleId: <ROLE_ID>
+    secretRef: openbao-approle-secret

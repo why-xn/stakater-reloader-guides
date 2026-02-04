@@ -1,0 +1,9 @@
+# VaultConnection for OpenBao BSO Kubernetes Auth pattern
+# Note: CRD uses "Vault" naming for API compatibility with OpenBao
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: openbao-connection
+  namespace: openbao-bso-test
+spec:
+  address: "http://openbao.openbao.svc.cluster.local:8200"

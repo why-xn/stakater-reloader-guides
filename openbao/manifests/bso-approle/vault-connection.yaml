@@ -1,0 +1,8 @@
+# VaultConnection for OpenBao BSO AppRole pattern
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: openbao-connection
+  namespace: openbao-bso-test
+spec:
+  address: "http://openbao.openbao.svc.cluster.local:8200"

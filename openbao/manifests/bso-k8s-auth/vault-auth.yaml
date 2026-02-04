@@ -1,0 +1,13 @@
+# VaultAuth for OpenBao BSO Kubernetes Auth pattern
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: openbao-auth
+  namespace: openbao-bso-test
+spec:
+  vaultConnectionRef: openbao-connection
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: bso-role
+    serviceAccount: openbao-bso-sa

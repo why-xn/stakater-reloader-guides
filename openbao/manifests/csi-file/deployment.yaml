@@ -1,0 +1,45 @@
+# Application Deployment for OpenBao CSI file-based pattern
+# Secrets are mounted as files, no K8s Secret sync
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao-csi-file-app
+  namespace: openbao-csi-test
+  annotations:
+    # Reloader annotation for CSI-mounted secrets
+    secretproviderclass.reloader.stakater.com/reload: "openbao-secrets-file"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao-csi-file-app
+  template:
+    metadata:
+      labels:
+        app: openbao-csi-file-app
+    spec:
+      serviceAccountName: openbao-csi-sa
+      containers:
+        - name: app
+          image: busybox:latest
+          command:
+            - "sh"
+            - "-c"
+            - |
+              while true; do
+                echo "=== Secrets from file ==="
+                echo "Username: $(cat /mnt/secrets/username)"
+                echo "Password: $(cat /mnt/secrets/password)"
+                sleep 30
+              done
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: openbao-secrets-file
